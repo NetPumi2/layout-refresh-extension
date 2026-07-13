@@ -7,11 +7,23 @@
   const TOAST_ID = "layout-refresh-extension-toast";
   const TOAST_DURATION_MS = 3000;
 
+  // Watched entries are matched against the domain:port only (window.location.host),
+  // never against the full URL or path — this is intentional so that one watched
+  // entry (e.g. "localhost:4200") applies to every route/sub-page on that host
+  // ("/full-page-layout", "/form-onboarding", ...), not just the root path.
+  function normalizeHostEntry(value) {
+    let normalized = String(value || "").trim().toLowerCase();
+    if (!normalized) return "";
+    normalized = normalized.replace(/^[a-z][a-z0-9+.-]*:\/\//, ""); // strip "http://", "https://", ...
+    normalized = normalized.split(/[/?#]/)[0]; // strip any trailing path, query, hash, or slash
+    return normalized;
+  }
+
   function currentHostMatches(watchedHosts) {
-    const currentHost = window.location.host.toLowerCase();
-    const currentHostname = window.location.hostname.toLowerCase();
+    const currentHost = window.location.host.toLowerCase(); // "hostname:port", no path
+    const currentHostname = window.location.hostname.toLowerCase(); // "hostname" only, any port
     return watchedHosts.some((entry) => {
-      const normalized = String(entry || "").trim().toLowerCase();
+      const normalized = normalizeHostEntry(entry);
       if (!normalized) return false;
       return normalized === currentHost || normalized === currentHostname;
     });

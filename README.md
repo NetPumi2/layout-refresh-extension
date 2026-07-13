@@ -1,3 +1,5 @@
+![vibe coded](https://img.shields.io/badge/vibe%20coded-100%25-ff69b4)
+
 # Layout Refresh Extension
 
 Chrome extension (Manifest V3) that watches configured dev-server pages for a
