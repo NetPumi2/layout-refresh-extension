@@ -17,9 +17,9 @@ refresh happened.
   triggers a delayed recheck in case a route change's DOM mutations are
   missed or coalesced past the observer.
 - On detection, the page is reloaded via `location.reload()`.
-- After reload, a green toast ("Stránka obnovena: Layout not found") is shown
-  for ~3 seconds, using a `sessionStorage`-independent flag stored in
-  `chrome.storage.local` so it survives the full page reload.
+- After reload, a green toast ("Refreshed") is shown for ~3 seconds, using a
+  `sessionStorage`-independent flag stored in `chrome.storage.local` so it
+  survives the full page reload.
 - Rate-limited to at most one automatic refresh per 1.5 seconds, to avoid
   refresh loops if the error reappears immediately (e.g. backend still
   starting up).
@@ -61,8 +61,7 @@ with `localhost:4200` pre-populated.
      '<div style="z-index:0;position:relative;"><div>Layout not found</div></div>';
    ```
 3. The page should reload automatically within a moment, and a green
-   "Stránka obnovena: Layout not found" toast should appear briefly in the
-   bottom-right corner.
+   "Refreshed" toast should appear briefly in the bottom-right corner.
 4. To verify the rate limit, repeat the console command again immediately
    after — it should not refresh a second time within 1.5 seconds (check the
    Console for a "Refresh skipped (rate limited)" log line).

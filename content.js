@@ -62,7 +62,7 @@
         const age = Date.now() - flag.timestamp;
         if (age >= 0 && age < FLAG_FRESHNESS_MS) {
           log(`Showing post-refresh toast (flag age ${age}ms).`);
-          showToast("Stránka obnovena: Layout not found");
+          showToast("Refreshed");
         } else {
           log(`Found stale justRefreshedByExtension flag (age ${age}ms), ignoring.`);
         }
