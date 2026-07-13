@@ -14,6 +14,19 @@
     if (DEBUG) console.log(LOG_PREFIX, ...args);
   }
 
+  // After the extension is reloaded/updated in chrome://extensions, any content
+  // script already running on an open page becomes "orphaned": its chrome.* API
+  // bindings point at a torn-down extension instance and throw "Extension
+  // context invalidated" on use. Check this before every chrome.* call so an
+  // orphaned instance quietly stops instead of throwing into the page console.
+  function isExtensionContextValid() {
+    try {
+      return !!(chrome && chrome.runtime && chrome.runtime.id);
+    } catch (e) {
+      return false;
+    }
+  }
+
   // Watched entries are matched against the domain:port only (window.location.host),
   // never against the full URL or path — this is intentional so that one watched
   // entry (e.g. "localhost:4200") applies to every route/sub-page on that host
@@ -56,19 +69,38 @@
   }
 
   function checkAndShowRefreshToast() {
-    chrome.storage.local.get([REFRESH_FLAG_KEY], (result) => {
-      const flag = result[REFRESH_FLAG_KEY];
-      if (flag && typeof flag.timestamp === "number") {
-        const age = Date.now() - flag.timestamp;
-        if (age >= 0 && age < FLAG_FRESHNESS_MS) {
-          log(`Showing post-refresh toast (flag age ${age}ms).`);
-          showToast("Refreshed");
-        } else {
-          log(`Found stale justRefreshedByExtension flag (age ${age}ms), ignoring.`);
+    if (!isExtensionContextValid()) {
+      log("checkAndShowRefreshToast skipped: extension context invalidated.");
+      return;
+    }
+
+    try {
+      chrome.storage.local.get([REFRESH_FLAG_KEY], (result) => {
+        if (!isExtensionContextValid()) {
+          log("checkAndShowRefreshToast callback skipped: extension context invalidated.");
+          return;
         }
-        chrome.storage.local.remove(REFRESH_FLAG_KEY);
-      }
-    });
+
+        const flag = result[REFRESH_FLAG_KEY];
+        if (flag && typeof flag.timestamp === "number") {
+          const age = Date.now() - flag.timestamp;
+          if (age >= 0 && age < FLAG_FRESHNESS_MS) {
+            log(`Showing post-refresh toast (flag age ${age}ms).`);
+            showToast("Refreshed");
+          } else {
+            log(`Found stale justRefreshedByExtension flag (age ${age}ms), ignoring.`);
+          }
+
+          try {
+            chrome.storage.local.remove(REFRESH_FLAG_KEY);
+          } catch (e) {
+            log("checkAndShowRefreshToast: chrome.storage.local.remove threw, extension context invalidated.", e);
+          }
+        }
+      });
+    } catch (e) {
+      log("checkAndShowRefreshToast: chrome.storage.local.get threw, extension context invalidated.", e);
+    }
   }
 
   function pageContainsError() {
@@ -76,29 +108,47 @@
   }
 
   function triggerRefresh(source) {
-    chrome.storage.local.get([LAST_REFRESH_KEY], (result) => {
-      const lastRefresh = result[LAST_REFRESH_KEY] || 0;
-      const now = Date.now();
-      const elapsed = now - lastRefresh;
+    if (!isExtensionContextValid()) {
+      log(`triggerRefresh("${source}") skipped: extension context invalidated.`);
+      return;
+    }
 
-      if (elapsed < RATE_LIMIT_MS) {
-        log(
-          `Refresh skipped (rate limited): source="${source}", only ${elapsed}ms since last refresh (limit ${RATE_LIMIT_MS}ms). Still watching.`
-        );
-        return;
-      }
-
-      log(`Refresh triggered: source="${source}", ${elapsed}ms since last refresh.`);
-      chrome.storage.local.set(
-        {
-          [LAST_REFRESH_KEY]: now,
-          [REFRESH_FLAG_KEY]: { timestamp: now },
-        },
-        () => {
-          window.location.reload();
+    try {
+      chrome.storage.local.get([LAST_REFRESH_KEY], (result) => {
+        if (!isExtensionContextValid()) {
+          log(`triggerRefresh("${source}") callback skipped: extension context invalidated.`);
+          return;
         }
-      );
-    });
+
+        const lastRefresh = result[LAST_REFRESH_KEY] || 0;
+        const now = Date.now();
+        const elapsed = now - lastRefresh;
+
+        if (elapsed < RATE_LIMIT_MS) {
+          log(
+            `Refresh skipped (rate limited): source="${source}", only ${elapsed}ms since last refresh (limit ${RATE_LIMIT_MS}ms). Still watching.`
+          );
+          return;
+        }
+
+        log(`Refresh triggered: source="${source}", ${elapsed}ms since last refresh.`);
+        try {
+          chrome.storage.local.set(
+            {
+              [LAST_REFRESH_KEY]: now,
+              [REFRESH_FLAG_KEY]: { timestamp: now },
+            },
+            () => {
+              window.location.reload();
+            }
+          );
+        } catch (e) {
+          log("triggerRefresh: chrome.storage.local.set threw, extension context invalidated.", e);
+        }
+      });
+    } catch (e) {
+      log(`triggerRefresh("${source}"): chrome.storage.local.get threw, extension context invalidated.`, e);
+    }
   }
 
   // Observe document.body rather than a specific #root node: some SPA route
@@ -114,6 +164,12 @@
     }
 
     const observer = new MutationObserver(() => {
+      if (!isExtensionContextValid()) {
+        log("Extension context invalidated, disconnecting MutationObserver.");
+        observer.disconnect();
+        return;
+      }
+
       if (pageContainsError()) {
         log('MutationObserver detected "Layout not found".');
         triggerRefresh("mutation-observer");
@@ -141,6 +197,11 @@
   // route change is missed or coalesced in a way the observer doesn't see.
   function scheduleSpaNavRecheck(source) {
     setTimeout(() => {
+      if (!isExtensionContextValid()) {
+        log(`SPA navigation recheck ("${source}") skipped: extension context invalidated.`);
+        return;
+      }
+
       log(`SPA navigation recheck ("${source}") running after ${SPA_NAV_RECHECK_DELAY_MS}ms delay.`);
       if (pageContainsError()) {
         log(`SPA navigation recheck ("${source}") detected "Layout not found".`);
@@ -170,27 +231,40 @@
   }
 
   function init() {
+    if (!isExtensionContextValid()) {
+      log("init skipped: extension context invalidated.");
+      return;
+    }
+
     checkAndShowRefreshToast();
 
-    chrome.storage.local.get(
-      { watchingEnabled: true, watchedHosts: [] },
-      (settings) => {
-        if (!settings.watchingEnabled) {
-          log("Watching disabled (watchingEnabled=false).");
-          return;
+    try {
+      chrome.storage.local.get(
+        { watchingEnabled: true, watchedHosts: [] },
+        (settings) => {
+          if (!isExtensionContextValid()) {
+            log("init callback skipped: extension context invalidated.");
+            return;
+          }
+          if (!settings.watchingEnabled) {
+            log("Watching disabled (watchingEnabled=false).");
+            return;
+          }
+          if (!currentHostMatches(settings.watchedHosts)) {
+            log(
+              `Host "${window.location.host}" not in watchedHosts, extension inactive on this page.`,
+              settings.watchedHosts
+            );
+            return;
+          }
+          log(`Host "${window.location.host}" matched watchedHosts, activating.`);
+          startWatching();
+          installSpaNavigationWatchers();
         }
-        if (!currentHostMatches(settings.watchedHosts)) {
-          log(
-            `Host "${window.location.host}" not in watchedHosts, extension inactive on this page.`,
-            settings.watchedHosts
-          );
-          return;
-        }
-        log(`Host "${window.location.host}" matched watchedHosts, activating.`);
-        startWatching();
-        installSpaNavigationWatchers();
-      }
-    );
+      );
+    } catch (e) {
+      log("init: chrome.storage.local.get threw, extension context invalidated.", e);
+    }
   }
 
   init();
