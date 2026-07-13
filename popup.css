@@ -1,0 +1,149 @@
+body {
+  width: 280px;
+  margin: 0;
+  padding: 12px 14px;
+  font-family: Arial, sans-serif;
+  color: #222;
+}
+
+h1 {
+  font-size: 15px;
+  margin: 0 0 10px;
+}
+
+h2 {
+  font-size: 13px;
+  margin: 14px 0 4px;
+  color: #444;
+}
+
+.hint {
+  font-size: 11px;
+  color: #777;
+  margin: 0 0 8px;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#watchingLabel {
+  font-size: 12px;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: #ccc;
+  border-radius: 20px;
+  transition: 0.15s;
+}
+
+.slider::before {
+  content: "";
+  position: absolute;
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: #fff;
+  border-radius: 50%;
+  transition: 0.15s;
+}
+
+.switch input:checked + .slider {
+  background-color: #4caf50;
+}
+
+.switch input:checked + .slider::before {
+  transform: translateX(16px);
+}
+
+#hostList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+#hostList li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  background: #f4f4f4;
+  margin-bottom: 4px;
+}
+
+#hostList li span {
+  overflow-wrap: anywhere;
+}
+
+#hostList li button {
+  border: none;
+  background: #f44336;
+  color: #fff;
+  border-radius: 3px;
+  padding: 3px 7px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+#hostList li button:hover {
+  background: #d32f2f;
+}
+
+.empty-hint {
+  font-size: 11px;
+  color: #999;
+  padding: 4px 0;
+}
+
+.add-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+#hostInput {
+  flex: 1;
+  padding: 5px 7px;
+  font-size: 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+#addHostBtn {
+  border: none;
+  background: #4caf50;
+  color: #fff;
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#addHostBtn:hover {
+  background: #43a047;
+}

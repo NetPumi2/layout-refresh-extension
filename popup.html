@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8" />
+  <title>Layout Refresh Extension</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <h1>Layout Refresh Extension</h1>
+
+  <div class="toggle-row">
+    <label class="switch">
+      <input type="checkbox" id="watchingEnabled" />
+      <span class="slider"></span>
+    </label>
+    <span id="watchingLabel">Sledování aktivní: zapnuto</span>
+  </div>
+
+  <h2>Sledované adresy</h2>
+  <p class="hint">Zadej hostname nebo hostname:port (např. localhost:4200)</p>
+
+  <ul id="hostList"></ul>
+
+  <div class="add-row">
+    <input type="text" id="hostInput" placeholder="localhost:4200" />
+    <button id="addHostBtn">Přidat</button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
