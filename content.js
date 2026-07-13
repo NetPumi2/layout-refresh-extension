@@ -5,7 +5,7 @@
   const RATE_LIMIT_MS = 1500;
   const FLAG_FRESHNESS_MS = 5000;
   const TOAST_ID = "layout-refresh-extension-toast";
-  const TOAST_DURATION_MS = 1200; // time toast stays fully visible before it starts fading out
+  const TOAST_DURATION_MS = 600; // time toast stays fully visible before it starts fading out
   const TOAST_FADE_MS = 200; // must match the transition-duration in content.css
   const SPA_NAV_RECHECK_DELAY_MS = 250;
   const DEBUG = true;

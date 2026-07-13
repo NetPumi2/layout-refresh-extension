@@ -17,7 +17,7 @@ refresh happened.
   triggers a delayed recheck in case a route change's DOM mutations are
   missed or coalesced past the observer.
 - On detection, the page is reloaded via `location.reload()`.
-- After reload, a green toast ("Refreshed") is shown for ~1.4 seconds, using a
+- After reload, a green toast ("Refreshed") is shown for ~0.8 seconds, using a
   `sessionStorage`-independent flag stored in `chrome.storage.local` so it
   survives the full page reload.
 - Rate-limited to at most one automatic refresh per 1.5 seconds, to avoid
