@@ -9,17 +9,25 @@ refresh happened.
 
 ## Features
 
-- MutationObserver watches `#root` (falls back to `document.body`) for the
-  text `"Layout not found"` appearing anywhere on the page.
+- MutationObserver watches `document.body` (stable across SPA client-side
+  navigation, unlike a specific `#root` node reference) for the text
+  `"Layout not found"` appearing anywhere on the page.
+- As a redundant safety net for single-page apps, `history.pushState` /
+  `replaceState` are wrapped and `popstate` is also listened for; each
+  triggers a delayed recheck in case a route change's DOM mutations are
+  missed or coalesced past the observer.
 - On detection, the page is reloaded via `location.reload()`.
 - After reload, a green toast ("Stránka obnovena: Layout not found") is shown
   for ~3 seconds, using a `sessionStorage`-independent flag stored in
   `chrome.storage.local` so it survives the full page reload.
-- Rate-limited to at most one automatic refresh per 3 seconds, to avoid
+- Rate-limited to at most one automatic refresh per 1.5 seconds, to avoid
   refresh loops if the error reappears immediately (e.g. backend still
   starting up).
 - Only activates on hosts you explicitly add via the popup — nothing is
   hardcoded to a single port.
+- Debug logging (`[LayoutRefreshExtension]` prefix) is always on in the
+  Console — useful when diagnosing SPA navigation edge cases. Toggle it off
+  by flipping the `DEBUG` constant at the top of `content.js`.
 
 ## Configuration (popup)
 
@@ -56,6 +64,11 @@ with `localhost:4200` pre-populated.
    "Stránka obnovena: Layout not found" toast should appear briefly in the
    bottom-right corner.
 4. To verify the rate limit, repeat the console command again immediately
-   after — it should not refresh a second time within 3 seconds.
+   after — it should not refresh a second time within 1.5 seconds (check the
+   Console for a "Refresh skipped (rate limited)" log line).
 5. To verify host filtering, remove the current host from `watchedHosts` in
    the popup, repeat step 2, and confirm no refresh happens.
+6. To verify behavior across SPA client-side navigation, click between
+   in-app routes a few times, then repeat step 2 on different routes — each
+   should reload consistently, and the Console should show
+   `[LayoutRefreshExtension]` logs for each detection/refresh/skip.

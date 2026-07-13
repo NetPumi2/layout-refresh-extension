@@ -2,10 +2,17 @@
   const ERROR_TEXT = "Layout not found";
   const REFRESH_FLAG_KEY = "justRefreshedByExtension";
   const LAST_REFRESH_KEY = "lastRefreshTimestamp";
-  const RATE_LIMIT_MS = 3000;
+  const RATE_LIMIT_MS = 1500;
   const FLAG_FRESHNESS_MS = 5000;
   const TOAST_ID = "layout-refresh-extension-toast";
   const TOAST_DURATION_MS = 3000;
+  const SPA_NAV_RECHECK_DELAY_MS = 250;
+  const DEBUG = true;
+  const LOG_PREFIX = "[LayoutRefreshExtension]";
+
+  function log(...args) {
+    if (DEBUG) console.log(LOG_PREFIX, ...args);
+  }
 
   // Watched entries are matched against the domain:port only (window.location.host),
   // never against the full URL or path — this is intentional so that one watched
@@ -54,7 +61,10 @@
       if (flag && typeof flag.timestamp === "number") {
         const age = Date.now() - flag.timestamp;
         if (age >= 0 && age < FLAG_FRESHNESS_MS) {
+          log(`Showing post-refresh toast (flag age ${age}ms).`);
           showToast("Stránka obnovena: Layout not found");
+        } else {
+          log(`Found stale justRefreshedByExtension flag (age ${age}ms), ignoring.`);
         }
         chrome.storage.local.remove(REFRESH_FLAG_KEY);
       }
@@ -65,14 +75,20 @@
     return !!document.body && document.body.innerText.includes(ERROR_TEXT);
   }
 
-  function triggerRefresh(observer) {
+  function triggerRefresh(source) {
     chrome.storage.local.get([LAST_REFRESH_KEY], (result) => {
       const lastRefresh = result[LAST_REFRESH_KEY] || 0;
       const now = Date.now();
-      if (now - lastRefresh < RATE_LIMIT_MS) {
+      const elapsed = now - lastRefresh;
+
+      if (elapsed < RATE_LIMIT_MS) {
+        log(
+          `Refresh skipped (rate limited): source="${source}", only ${elapsed}ms since last refresh (limit ${RATE_LIMIT_MS}ms). Still watching.`
+        );
         return;
       }
-      if (observer) observer.disconnect();
+
+      log(`Refresh triggered: source="${source}", ${elapsed}ms since last refresh.`);
       chrome.storage.local.set(
         {
           [LAST_REFRESH_KEY]: now,
@@ -85,13 +101,22 @@
     });
   }
 
+  // Observe document.body rather than a specific #root node: some SPA route
+  // changes replace the #root element itself (not just its children), which
+  // would leave a MutationObserver attached to a detached, dead node. body is
+  // effectively never replaced wholesale, so the observer keeps working across
+  // client-side navigation.
   function startWatching() {
-    const target = document.getElementById("root") || document.body;
-    if (!target) return;
+    const target = document.body || document.documentElement;
+    if (!target) {
+      log("startWatching: no document.body/documentElement available, aborting.");
+      return;
+    }
 
     const observer = new MutationObserver(() => {
       if (pageContainsError()) {
-        triggerRefresh(observer);
+        log('MutationObserver detected "Layout not found".');
+        triggerRefresh("mutation-observer");
       }
     });
 
@@ -101,9 +126,47 @@
       characterData: true,
     });
 
+    log("MutationObserver attached to document.body.");
+
     if (pageContainsError()) {
-      triggerRefresh(observer);
+      log('Initial check found "Layout not found" already present on load.');
+      triggerRefresh("initial-check");
     }
+  }
+
+  // Redundant, MutationObserver-independent safety net: Angular's router (and
+  // SPA routers in general) drive navigation through pushState/replaceState,
+  // optionally followed by popstate on back/forward. Re-checking shortly after
+  // any of these fires catches cases where the DOM mutation sequence around a
+  // route change is missed or coalesced in a way the observer doesn't see.
+  function scheduleSpaNavRecheck(source) {
+    setTimeout(() => {
+      log(`SPA navigation recheck ("${source}") running after ${SPA_NAV_RECHECK_DELAY_MS}ms delay.`);
+      if (pageContainsError()) {
+        log(`SPA navigation recheck ("${source}") detected "Layout not found".`);
+        triggerRefresh(`spa-nav:${source}`);
+      }
+    }, SPA_NAV_RECHECK_DELAY_MS);
+  }
+
+  function installSpaNavigationWatchers() {
+    window.addEventListener("popstate", () => scheduleSpaNavRecheck("popstate"));
+
+    const originalPushState = history.pushState;
+    history.pushState = function (...args) {
+      const result = originalPushState.apply(this, args);
+      scheduleSpaNavRecheck("pushState");
+      return result;
+    };
+
+    const originalReplaceState = history.replaceState;
+    history.replaceState = function (...args) {
+      const result = originalReplaceState.apply(this, args);
+      scheduleSpaNavRecheck("replaceState");
+      return result;
+    };
+
+    log("Installed popstate/pushState/replaceState navigation watchers.");
   }
 
   function init() {
@@ -112,9 +175,20 @@
     chrome.storage.local.get(
       { watchingEnabled: true, watchedHosts: [] },
       (settings) => {
-        if (!settings.watchingEnabled) return;
-        if (!currentHostMatches(settings.watchedHosts)) return;
+        if (!settings.watchingEnabled) {
+          log("Watching disabled (watchingEnabled=false).");
+          return;
+        }
+        if (!currentHostMatches(settings.watchedHosts)) {
+          log(
+            `Host "${window.location.host}" not in watchedHosts, extension inactive on this page.`,
+            settings.watchedHosts
+          );
+          return;
+        }
+        log(`Host "${window.location.host}" matched watchedHosts, activating.`);
         startWatching();
+        installSpaNavigationWatchers();
       }
     );
   }
